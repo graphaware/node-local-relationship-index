@@ -39,6 +39,18 @@ public class LabelBasedIndexManager extends LifecycleAdapter implements IndexMan
     }
 
     @Override
+    public void drop(IndexDescriptor descriptor) {
+        log.info("Deleting index %s", descriptor);
+        Result result = db.execute("MATCH (i:Index {label: $label, relationshipType:$relType, property:$property}) DETACH DELETE i",
+                of("label", descriptor.getLabel(),
+                        "relType", descriptor.getRelationshipType(),
+                        "property", descriptor.getProperty())
+        );
+        result.close();
+        indexes.remove(descriptor);
+    }
+
+    @Override
     public Set<IndexDescriptor> indexes() {
         // TODO this is not very nice, I tried to load it in start() method of the Lifecycle, but it blocks the database start
         if (indexes.isEmpty()) {

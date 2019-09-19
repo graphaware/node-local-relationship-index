@@ -11,4 +11,5 @@ public interface IndexManager {
 
     Stream<IndexDescriptor> stream();
 
+    void drop(IndexDescriptor indexDescriptor);
 }

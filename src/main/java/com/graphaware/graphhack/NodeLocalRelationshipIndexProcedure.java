@@ -39,6 +39,17 @@ public class NodeLocalRelationshipIndexProcedure {
         indexManager().create(new IndexDescriptor(label, relationshipType, property));
     }
 
+    @Procedure(value = "ga.index.drop", mode = Mode.WRITE)
+    public void drop(@Name("label") String label,
+                          @Name("relationshipType") String relationshipType,
+                          @Name("property") String property) {
+        checkParam("label", label);
+        checkParam("relationshipType", relationshipType);
+        checkParam("property", property);
+
+        indexManager().drop(new IndexDescriptor(label, relationshipType, property));
+    }
+
     private void checkParam(String name, Object value) {
         if (value == null) {
             throw new IllegalArgumentException("Parameter " + name + " cannot be null");
@@ -90,7 +101,6 @@ public class NodeLocalRelationshipIndexProcedure {
         // TODO return unique results?
         return results.stream().flatMap(Function.identity());
     }
-
 
     public static class LookupResult {
 

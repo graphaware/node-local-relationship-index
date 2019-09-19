@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.junit.Assert.assertEquals;
 
 public class IndexManagementTest extends BaseTest {
 
@@ -29,7 +30,13 @@ public class IndexManagementTest extends BaseTest {
 
     @Test
     public void dropIndex() {
-        fail("TODO Implement drop index");
+        db.execute("CALL ga.index.create('Person', 'VISITED', 'date')").close();
+
+        db.execute("CALL ga.index.drop('Person', 'VISITED', 'date')").close();
+
+        Result r = db.execute("CALL ga.index.list()");
+        List<Map<String, Object>> result = newArrayList(r);
+        assertThat(result).hasSize(0);
     }
 
     @Test
