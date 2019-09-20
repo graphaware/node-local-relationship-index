@@ -6,11 +6,11 @@ import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.internal.LogService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-
-import static com.google.common.collect.ImmutableMap.of;
 
 public class LabelBasedIndexManager extends LifecycleAdapter implements IndexManager {
 
@@ -29,10 +29,12 @@ public class LabelBasedIndexManager extends LifecycleAdapter implements IndexMan
     @Override
     public void create(IndexDescriptor descriptor) {
         log.info("Create index %s", descriptor);
+        Map<String, Object> params = new HashMap<>();
+        params.put("label", descriptor.getLabel());
+        params.put("relType", descriptor.getRelationshipType());
+        params.put("property", descriptor.getProperty());
         Result result = db.execute("MERGE (i:Index {label: $label, relationshipType:$relType, property:$property})",
-                of("label", descriptor.getLabel(),
-                        "relType", descriptor.getRelationshipType(),
-                        "property", descriptor.getProperty())
+                params
         );
         result.close();
         indexes.add(descriptor);

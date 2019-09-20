@@ -1,6 +1,6 @@
 package com.graphaware.graphhack.nlri;
 
-import com.google.common.base.Objects;
+import java.util.Objects;
 
 public class IndexDescriptor {
 
@@ -34,14 +34,14 @@ public class IndexDescriptor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexDescriptor that = (IndexDescriptor) o;
-        return Objects.equal(label, that.label) &&
-                Objects.equal(relationshipType, that.relationshipType) &&
-                Objects.equal(property, that.property);
+        return Objects.equals(label, that.label) &&
+                Objects.equals(relationshipType, that.relationshipType) &&
+                Objects.equals(property, that.property);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(label, relationshipType, property);
+        return Objects.hash(label, relationshipType, property);
     }
 
     public String name() {
