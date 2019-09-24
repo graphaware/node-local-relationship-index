@@ -50,7 +50,8 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
 
             doThing(indexes, relPropNames, entry, (node, descriptor) -> {
                 String localIndexName = descriptor.localName(node.getId());
-                if (!db.index().existsForRelationships(localIndexName)) {
+                boolean indexExists = db.index().existsForRelationships(localIndexName);
+                if (!indexExists) {
                     // Index doesn't exists - we have reached the threshold
                     // need to create one and index all pre-existing relationships
 
@@ -62,9 +63,11 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
 
                 RelationshipIndex index = db.index().forRelationships(localIndexName);
                 index.putIfAbsent(relationship, entry.key(), entry.value());
-            });
 
-            // TODO handle property update
+                if (indexExists && entry.previouslyCommitedValue() != null) {
+                    index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());
+                }
+            });
         }
 
         for (PropertyEntry<Relationship> entry : data.removedRelationshipProperties()) {
@@ -77,7 +80,6 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
 
             });
         }
-        // TODO handle data.removedRelationshipProperties()
 
         return super.beforeCommit(data);
     }

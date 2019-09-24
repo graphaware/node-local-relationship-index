@@ -82,7 +82,26 @@ public class NodeLocalRelationshipIndexTest extends BaseTest {
     }
 
     @Test
-    public void shouldUpdateIndexWhenPropertyIsUpdated() {
-        fail("TODO not implemented yet");
+    public void shouldNotLookupRelationshipWithOldValueAfterUpdate() {
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+
+        execute("CREATE (p:Person {name:'Frantisek'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Prague'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2019-09-12'}]->(:Place {name:'Bratislava'})");
+
+        execute("MATCH (p:Person {name:'Frantisek'})-[r:VISITED]->(:Place {name:'Prague'}) SET r.date = '2018-04-21'");
+
+        List<Map<String, Object>> original = execute("MATCH (n:Person {name:'Frantisek'}) " +
+                "CALL ga.index.lookup([n], 'VISITED', 'date', $date) YIELD r,other " +
+                "RETURN r,other", ImmutableMap.of("date", "2018-04-20"));
+
+        assertThat(original).isEmpty();
+
+        List<Map<String, Object>> updated = execute("MATCH (n:Person {name:'Frantisek'}) " +
+                "CALL ga.index.lookup([n], 'VISITED', 'date', $date) YIELD r,other " +
+                "RETURN r,other", ImmutableMap.of("date", "2018-04-21"));
+
+        assertThat(updated).hasSize(1);
     }
+
 }
