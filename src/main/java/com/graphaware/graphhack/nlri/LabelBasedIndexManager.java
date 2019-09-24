@@ -43,11 +43,13 @@ public class LabelBasedIndexManager extends LifecycleAdapter implements IndexMan
     @Override
     public void drop(IndexDescriptor descriptor) {
         log.info("Deleting index %s", descriptor);
+        Map<String, Object> params = new HashMap<>();
+        params.put("label", descriptor.getLabel());
+        params.put("relType", descriptor.getRelationshipType());
+        params.put("property", descriptor.getProperty());
+
         Result result = db.execute("MATCH (i:Index {label: $label, relationshipType:$relType, property:$property}) DETACH DELETE i",
-                of("label", descriptor.getLabel(),
-                        "relType", descriptor.getRelationshipType(),
-                        "property", descriptor.getProperty())
-        );
+                params);
         result.close();
         indexes.remove(descriptor);
     }
