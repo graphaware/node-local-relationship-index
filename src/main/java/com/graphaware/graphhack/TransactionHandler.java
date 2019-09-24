@@ -16,6 +16,7 @@ import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.logging.Log;
 
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -47,41 +48,58 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
         for (PropertyEntry<Relationship> entry : data.assignedRelationshipProperties()) {
             Relationship relationship = entry.entity();
 
-            // If there is no index with this property there is no point in checking all label - rel type - prop name combinations
-            if (relPropNames.contains(entry.key())) {
-                for (Node node : relationship.getNodes()) {
+            doThing(indexes, relPropNames, entry, (node, descriptor) -> {
+                String localIndexName = descriptor.localName(node.getId());
+                if (!db.index().existsForRelationships(localIndexName)) {
+                    // Index doesn't exists - we have reached the threshold
+                    // need to create one and index all pre-existing relationships
 
-                    if (node.getDegree(relationship.getType()) >= threshold()) {
-                        for (Label label : node.getLabels()) {
-                            IndexDescriptor descriptor = new IndexDescriptor(label.name(), relationship.getType().name(), entry.key());
-                            if (indexes.contains(descriptor)) {
-                                // Index exists
-
-                                String localIndexName = descriptor.localName(node.getId());
-                                if (!db.index().existsForRelationships(localIndexName)) {
-                                    // Index doesn't exists - we have reached the threshold
-                                    // need to create one and index all pre-existing relationships
-
-                                    RelationshipIndex index = db.index().forRelationships(localIndexName);
-                                    for (Relationship rel : node.getRelationships(relationship.getType())) {
-                                        index.putIfAbsent(rel, entry.key(), rel.getProperty(entry.key()));
-                                    }
-                                }
-
-                                RelationshipIndex index = db.index().forRelationships(localIndexName);
-                                index.putIfAbsent(relationship, entry.key(), entry.value());
-                            }
-                        }
+                    RelationshipIndex index = db.index().forRelationships(localIndexName);
+                    for (Relationship rel : node.getRelationships(relationship.getType())) {
+                        index.putIfAbsent(rel, entry.key(), rel.getProperty(entry.key()));
                     }
                 }
-            }
+
+                RelationshipIndex index = db.index().forRelationships(localIndexName);
+                index.putIfAbsent(relationship, entry.key(), entry.value());
+            });
 
             // TODO handle property update
         }
 
+        for (PropertyEntry<Relationship> entry : data.removedRelationshipProperties()) {
+            doThing(indexes, relPropNames, entry, (node, descriptor) -> {
+                String localIndexName = descriptor.localName(node.getId());
+                if (db.index().existsForRelationships(localIndexName)) {
+                    RelationshipIndex index = db.index().forRelationships(localIndexName);
+                    index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());
+                }
+
+            });
+        }
         // TODO handle data.removedRelationshipProperties()
 
         return super.beforeCommit(data);
+    }
+
+    private void doThing(Set<IndexDescriptor> indexes, Set<String> relPropNames, PropertyEntry<Relationship> entry, BiConsumer<Node, IndexDescriptor> biConsumer) {
+        Relationship relationship = entry.entity();
+        // If there is no index with this property there is no point in checking all label - rel type - prop name combinations
+        if (relPropNames.contains(entry.key())) {
+            for (Node node : relationship.getNodes()) {
+
+                if (node.getDegree(relationship.getType()) >= threshold()) {
+                    for (Label label : node.getLabels()) {
+                        IndexDescriptor descriptor = new IndexDescriptor(label.name(), relationship.getType().name(), entry.key());
+                        if (indexes.contains(descriptor)) {
+                            // Index exists
+
+                            biConsumer.accept(node, descriptor);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private int threshold() {

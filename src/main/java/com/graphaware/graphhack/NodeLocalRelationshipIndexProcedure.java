@@ -87,7 +87,7 @@ public class NodeLocalRelationshipIndexProcedure {
                 } else {
                     List<LookupResult> scanResult = new ArrayList<>();
                     for (Relationship relationship : node.getRelationships(RelationshipType.withName(relationshipType))) {
-                        if (value.equals(relationship.getProperty(property))) {
+                        if (value.equals(relationship.getProperty(property, null))) {
                             scanResult.add(new LookupResult(relationship, relationship.getOtherNode(node)));
                         }
                     }

@@ -66,7 +66,19 @@ public class NodeLocalRelationshipIndexTest extends BaseTest {
 
     @Test
     public void shouldUpdateIndexWhenPropertyIsRemoved() {
-        fail("TODO not implemented yet");
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+
+        execute("CREATE (p:Person {name:'Frantisek'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Prague'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2019-09-12'}]->(:Place {name:'Bratislava'})");
+
+        execute("MATCH (p:Person {name:'Frantisek'})-[r:VISITED]->(:Place {name:'Prague'}) REMOVE r.date");
+
+        List<Map<String, Object>> result = execute("MATCH (n:Person {name:'Frantisek'}) " +
+                "CALL ga.index.lookup([n], 'VISITED', 'date', $date) YIELD r,other " +
+                "RETURN r,other", ImmutableMap.of("date", "2018-04-20"));
+
+        assertThat(result).isEmpty();
     }
 
     @Test
