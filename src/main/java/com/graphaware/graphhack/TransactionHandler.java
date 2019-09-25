@@ -57,12 +57,12 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
 
                     RelationshipIndex index = db.index().forRelationships(localIndexName);
                     for (Relationship rel : node.getRelationships(relationship.getType())) {
-                        index.putIfAbsent(rel, entry.key(), rel.getProperty(entry.key()));
+                        index.add(rel, entry.key(), rel.getProperty(entry.key()));
                     }
                 }
 
                 RelationshipIndex index = db.index().forRelationships(localIndexName);
-                index.putIfAbsent(relationship, entry.key(), entry.value());
+                index.add(relationship, entry.key(), entry.value());
 
                 if (indexExists && entry.previouslyCommitedValue() != null) {
                     index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());

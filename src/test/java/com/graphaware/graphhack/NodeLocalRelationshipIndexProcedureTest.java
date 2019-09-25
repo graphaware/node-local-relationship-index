@@ -107,4 +107,18 @@ public class NodeLocalRelationshipIndexProcedureTest extends BaseTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    public void shouldIndexRelationshipsWithSameValue() {
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+
+        execute("CREATE (p:Person {name:'Frantisek'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Prague'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Bratislava'})");
+
+        List<Map<String, Object>> result = execute("MATCH (n:Person {name:'Frantisek'}) " +
+                "CALL ga.index.lookup([n], 'VISITED', 'date', $date) YIELD r,other " +
+                "RETURN r,other", ImmutableMap.of("date", "2018-04-20"));
+
+        assertThat(result).hasSize(2);
+    }
 }
