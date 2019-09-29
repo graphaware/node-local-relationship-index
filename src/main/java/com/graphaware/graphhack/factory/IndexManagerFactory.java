@@ -18,7 +18,7 @@ public class IndexManagerFactory extends KernelExtensionFactory<IndexManagerFact
 
     @Override
     public Lifecycle newInstance(KernelContext context, Dependencies dependencies) {
-        LabelBasedIndexManager indexManager = new LabelBasedIndexManager(dependencies.db(), dependencies.logService());
+        LabelBasedIndexManager indexManager = new LabelBasedIndexManager(dependencies.db(), dependencies.logService(), dependencies.config());
 
         TransactionHandler handler = new TransactionHandler(dependencies.db(),
                 dependencies.logService().getUserLog(TransactionHandler.class),

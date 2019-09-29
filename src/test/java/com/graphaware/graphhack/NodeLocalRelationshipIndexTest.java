@@ -40,6 +40,36 @@ public class NodeLocalRelationshipIndexTest extends BaseTest {
         assertThat(index.get("name")).isEqualTo("Person|VISITED|date|" + id);
     }
 
+    /**
+     * First create data and then index
+     */
+    @Test
+    public void shouldCreateIndexOnPreExistingNode() {
+        execute("CREATE (p:Person {name:'Frantisek'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Prague'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2019-09-12'}]->(:Place {name:'Bratislava'})");
+
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+
+        List<Map<String, Object>> result = db.execute("CALL db.index.explicit.list()").stream().collect(Collectors.toList());
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    public void shouldRemoveNodeLocalIndexWhenIndexIsDropped() {
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+        execute("CALL ga.index.create('Person', 'VISITED', 'date')");
+
+        execute("CREATE (p:Person {name:'Frantisek'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2018-04-20'}]->(:Place {name:'Prague'})");
+        execute("MATCH (p:Person {name:'Frantisek'}) CREATE (p)-[:VISITED {date:'2019-09-12'}]->(:Place {name:'Bratislava'})");
+
+        db.execute("CALL ga.index.drop('Person', 'VISITED', 'date')").close();
+
+        List<Map<String, Object>> result = db.execute("CALL db.index.explicit.list()").stream().collect(Collectors.toList());
+        assertThat(result).isEmpty();
+    }
+
     @Test
     public void shouldNotLookupDeletedRelationship() {
         execute("CALL ga.index.create('Person', 'VISITED', 'date')");

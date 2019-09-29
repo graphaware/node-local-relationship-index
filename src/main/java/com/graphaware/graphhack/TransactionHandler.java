@@ -16,7 +16,6 @@ import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.logging.Log;
 
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -26,8 +25,6 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
     private final Log log;
     private final IndexManager indexManager;
     private final Config config;
-
-    private int threshold;
 
     public TransactionHandler(GraphDatabaseService db, Log log, IndexManager indexManager, Config config) {
         this.db = db;
@@ -45,61 +42,83 @@ public class TransactionHandler extends TransactionEventHandler.Adapter implemen
         Set<IndexDescriptor> indexes = indexManager.indexes();
         Set<String> relPropNames = indexes.stream().map(IndexDescriptor::getProperty).collect(toSet());
 
-        for (PropertyEntry<Relationship> entry : data.assignedRelationshipProperties()) {
-            Relationship relationship = entry.entity();
-
-            doThing(indexes, relPropNames, entry, (node, descriptor) -> {
-                String localIndexName = descriptor.localName(node.getId());
-                boolean indexExists = db.index().existsForRelationships(localIndexName);
-                if (!indexExists) {
-                    // Index doesn't exists - we have reached the threshold
-                    // need to create one and index all pre-existing relationships
-
-                    RelationshipIndex index = db.index().forRelationships(localIndexName);
-                    for (Relationship rel : node.getRelationships(relationship.getType())) {
-                        index.add(rel, entry.key(), rel.getProperty(entry.key()));
-                    }
-                }
-
-                RelationshipIndex index = db.index().forRelationships(localIndexName);
-                index.add(relationship, entry.key(), entry.value());
-
-                if (indexExists && entry.previouslyCommitedValue() != null) {
-                    index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());
-                }
-            });
-        }
-
-        for (PropertyEntry<Relationship> entry : data.removedRelationshipProperties()) {
-            doThing(indexes, relPropNames, entry, (node, descriptor) -> {
-                String localIndexName = descriptor.localName(node.getId());
-                if (db.index().existsForRelationships(localIndexName)) {
-                    RelationshipIndex index = db.index().forRelationships(localIndexName);
-                    index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());
-                }
-
-            });
-        }
+        iterateOverChanges(indexes, relPropNames, new UpdatedProperty(), data.assignedRelationshipProperties());
+        iterateOverChanges(indexes, relPropNames, new RemoveProperty(), data.removedRelationshipProperties());
 
         return super.beforeCommit(data);
     }
 
-    private void doThing(Set<IndexDescriptor> indexes, Set<String> relPropNames, PropertyEntry<Relationship> entry, BiConsumer<Node, IndexDescriptor> biConsumer) {
-        Relationship relationship = entry.entity();
-        // If there is no index with this property there is no point in checking all label - rel type - prop name combinations
-        if (relPropNames.contains(entry.key())) {
-            for (Node node : relationship.getNodes()) {
 
-                if (node.getDegree(relationship.getType()) >= threshold()) {
+    private void iterateOverChanges(Set<IndexDescriptor> indexes,
+                                    Set<String> relPropNames,
+                                    IndexUpdater updater,
+                                    Iterable<PropertyEntry<Relationship>> entries) {
+
+        for (PropertyEntry<Relationship> entry : entries) {
+            Relationship relationship = entry.entity();
+
+            // If there is no index with this property there is no point in checking all label - rel type - prop name combinations
+            if (relPropNames.contains(entry.key())) {
+                for (Node node : relationship.getNodes()) {
                     for (Label label : node.getLabels()) {
                         IndexDescriptor descriptor = new IndexDescriptor(label.name(), relationship.getType().name(), entry.key());
-                        if (indexes.contains(descriptor)) {
-                            // Index exists
+                        String localIndexName = descriptor.localName(node.getId());
 
-                            biConsumer.accept(node, descriptor);
+                        // This is ugly as *
+                        // node.getDegree() should be fast, but isn't in transactions with lot of added relationships to single node
+                        // so we pre-check if the index exists and if it does then don't call getDegree at all
+                        if (db.index().existsForRelationships(localIndexName) ||
+                                // the getDegree() is (maybe?) faster than node.getDegree(type) so call that first
+                                ((node.getDegree() >= threshold()) && (node.getDegree(relationship.getType()) >= threshold()))) {
+
+                            if (indexes.contains(descriptor)) {
+                                // Index exists
+
+                                updater.accept(entry, node, relationship, descriptor, localIndexName);
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    interface IndexUpdater {
+
+        void accept(PropertyEntry<Relationship> entry, Node node, Relationship relationship, IndexDescriptor descriptor, String localIndexName);
+    }
+
+    class UpdatedProperty implements IndexUpdater {
+
+        @Override
+        public void accept(PropertyEntry<Relationship> entry, Node node, Relationship relationship, IndexDescriptor descriptor, String localIndexName) {
+            boolean indexExists = db.index().existsForRelationships(localIndexName);
+            if (!indexExists) {
+                // Index doesn't exists - we have reached the threshold
+                // need to create one and index all pre-existing relationships
+
+                RelationshipIndex index = db.index().forRelationships(localIndexName);
+                for (Relationship rel : node.getRelationships(relationship.getType())) {
+                    index.add(rel, entry.key(), rel.getProperty(entry.key()));
+                }
+            }
+
+            RelationshipIndex index = db.index().forRelationships(localIndexName);
+            index.add(relationship, entry.key(), entry.value());
+
+            if (indexExists && entry.previouslyCommitedValue() != null) {
+                index.remove(relationship, entry.key(), entry.previouslyCommitedValue());
+            }
+        }
+    }
+
+    class RemoveProperty implements IndexUpdater {
+
+        @Override
+        public void accept(PropertyEntry<Relationship> entry, Node node, Relationship relationship, IndexDescriptor descriptor, String localIndexName) {
+            if (db.index().existsForRelationships(localIndexName)) {
+                RelationshipIndex index = db.index().forRelationships(localIndexName);
+                index.remove(entry.entity(), entry.key(), entry.previouslyCommitedValue());
             }
         }
     }
