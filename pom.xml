@@ -129,5 +129,6 @@
             </plugin>
 
         </plugins>
+        <finalName>${project.artifactId}</finalName>
     </build>
 </project>

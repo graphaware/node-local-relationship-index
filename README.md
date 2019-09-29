@@ -2,8 +2,8 @@
 
 ## Motivation
 
-The supernode problem is a common issue in graph database space. 
-Being able to do following query efficiently on nodes with thousands, millions or more relationships would make a whole new range of use cases possible with Neo4j.  
+The supernode problem is a common issue in the graph database space. 
+Being able to do the following query efficiently on nodes with thousands, millions or more relationships would make a whole new range of use cases possible with Neo4j.  
 
 ```
 MATCH (node)-[r:MY_REL {i: $i}]-(other)
@@ -15,7 +15,18 @@ This is a proof-of-concept which shows it is possible to make such lookups fast.
 
 ## Usage
 
+Build using
+
+```
+$ mvn clean package
+```
+
 Deploy the node-local-relationship-index.jar to plugins directory.
+
+Whitelist the procedures in neo4j.conf 
+```
+dbms.security.procedures.unrestricted=ga.index.*
+```
 
 Define the index
 
@@ -32,8 +43,8 @@ RETURN r,other
 
 ## Configuration
 
-`com.graphaware.nlri.threshold` - configures threshold for creation of node local indexes, 
-when number of relationships from a node with a given label is over this threshold only then is the index created
+`com.graphaware.nlri.threshold` - configures the threshold for the creation of node local indexes. 
+When the number of relationships from a node with a given label is over this threshold, only then is the index created 
 (this is a dynamic config property and can be changed at runtime via `CALL dbms.setConfigValue` on EE)
 
 ## Implementation
